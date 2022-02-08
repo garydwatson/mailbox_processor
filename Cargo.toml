@@ -3,6 +3,14 @@ name = "mailbox_processor"
 version = "0.1.0"
 edition = "2021"
 
+license = "GNU Lesser GPL Version 2 (or any later version)" 
+description = "A small little actor abstraction inspired by the FSharp Mailbox Processor which in turn was inspired by erlang "
+homepage = "https://github.com/garydwatson/mailbox_processor"
+repository = "https://github.com/garydwatson/mailbox_processor"
+readme = "README.md"
+
+
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
