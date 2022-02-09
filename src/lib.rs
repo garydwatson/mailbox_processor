@@ -50,7 +50,7 @@ impl<Msg: std::marker::Send + 'static, ReplyMsg: std::marker::Send + 'static> Ma
         match self.message_sender.send((msg, Some(s))).await {
             Err(_) => Err("the mailbox channel is closed send back nothing"),
             Ok(_) => match r.recv().await {
-                Err(_) => Err("the response channel is closed send back nothing"),
+                Err(_) => Err("the response channel is closed (did you mean to call fire_and_forget() rather than send())"),
                 Ok(reply_message) => Ok(reply_message),
             },
         }
@@ -62,72 +62,58 @@ impl<Msg: std::marker::Send + 'static, ReplyMsg: std::marker::Send + 'static> Ma
 
 #[cfg(test)]
 mod tests {
-    use async_std::task;
     use super::*;
     use futures::future::{OptionFuture};
 
-
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
 
     #[async_std::test]
     async fn mailbox_processor_tests() {
 
         enum SendMessageTypes {
-            One(i32),
-            Two(String),
+            Increment(i32),
+            GetCurrentCount,
+            Decrement(i32),
         }
 
-        #[derive(Debug)]
-        enum ResponseMessageTypes {
-            Three(i32),
-            Four(String),
-        }
-
-        let mb = MailboxProcessor::<SendMessageTypes, ResponseMessageTypes>::new( 
+        let mb = MailboxProcessor::<SendMessageTypes, i32>::new( 
             BufferSize::Default, 
             0,  
             |msg, state, reply_channel| async move {
-                //if state % 10_000 == 0 {println!("state = {}", state)}
-                println!("state = {}", state);
                 match msg {
-                    SendMessageTypes::One(x) => {
-                        println!("hello");
+                    SendMessageTypes::Increment(x) => {
                         OptionFuture::from(reply_channel.map(|rc| async move {
-                            rc.send(ResponseMessageTypes::Three(25 + x)).await.unwrap()
+                            rc.send(state + x).await.unwrap()
                         })).await;
+                        state + x
                     },
-                    SendMessageTypes::Two(x) => {
-                        println!("yo");
-                        let something: i32 = 36;
+                    SendMessageTypes::GetCurrentCount => {
                         OptionFuture::from(reply_channel.map(|rc| async move {
-                            rc.send(ResponseMessageTypes::Four(format!("{}{}", x, something.to_string()))).await.unwrap()
+                            rc.send(state).await.unwrap()
                         })).await;
+                        state
                     },
-                };
-                state + 1
+                    SendMessageTypes::Decrement(x) => {
+                        OptionFuture::from(reply_channel.map(|rc| async move {
+                            rc.send(state - x).await.unwrap()
+                        })).await;
+                        state - x
+                    },
+                }
             }
         ).await;
 
-        println!("what is the output: {:#?}", mb.send(SendMessageTypes::One(55)).await);
-        println!("what is the output: {:#?}", mb.send(SendMessageTypes::Two("I'm a string thing".to_string())).await);
+        assert_eq!(mb.send(SendMessageTypes::GetCurrentCount).await.unwrap(), 0);
 
-        mb.fire_and_forget(SendMessageTypes::One(55)).await.unwrap();
-        mb.fire_and_forget(SendMessageTypes::Two("I'm a string thing".to_string())).await.unwrap();
+        mb.fire_and_forget(SendMessageTypes::Increment(55)).await.unwrap();
+        assert_eq!(mb.send(SendMessageTypes::GetCurrentCount).await.unwrap(), 55);
 
-        //loop {
-        //    mb.fire_and_forget(SendMessageTypes::One(55)).await.unwrap();
-        //}
+        mb.fire_and_forget(SendMessageTypes::Increment(55)).await.unwrap();
+        assert_eq!(mb.send(SendMessageTypes::GetCurrentCount).await.unwrap(), 110);
 
-        task::sleep(std::time::Duration::from_millis(1000)).await;
+        mb.fire_and_forget(SendMessageTypes::Decrement(10)).await.unwrap();
+        assert_eq!(mb.send(SendMessageTypes::GetCurrentCount).await.unwrap(), 100);
 
-
-//Fn(Msg, State, Option<Sender<ReplyMsg>>
+        assert_eq!(mb.send(SendMessageTypes::Increment(55)).await.unwrap(), 155);
+        assert_eq!(mb.send(SendMessageTypes::GetCurrentCount).await.unwrap(), 155);
     }
-
-
-
 }
