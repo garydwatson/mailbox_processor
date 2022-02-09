@@ -45,12 +45,12 @@ impl<Msg: std::marker::Send + 'static, ReplyMsg: std::marker::Send + 'static> Ma
             message_sender: s,
         }
     }
-    pub async fn send(&self, msg:Msg) -> Result<ReplyMsg, Box<dyn std::error::Error>> {
+    pub async fn send(&self, msg:Msg) -> Result<ReplyMsg, &str> {
         let (s, r) = bounded(1);
         match self.message_sender.send((msg, Some(s))).await {
-            Err(_) => Err("the mailbox channel is closed send back nothing".into()),
+            Err(_) => Err("the mailbox channel is closed send back nothing"),
             Ok(_) => match r.recv().await {
-                Err(_) => Err("the response channel is closed (did you mean to call fire_and_forget() rather than send())".into()),
+                Err(_) => Err("the response channel is closed (did you mean to call fire_and_forget() rather than send())"),
                 Ok(reply_message) => Ok(reply_message),
             },
         }
