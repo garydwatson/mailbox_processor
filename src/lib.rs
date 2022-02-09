@@ -45,12 +45,12 @@ impl<Msg: std::marker::Send + 'static, ReplyMsg: std::marker::Send + 'static> Ma
             message_sender: s,
         }
     }
-    pub async fn send(&self, msg:Msg) -> Result<ReplyMsg, &str> {
+    pub async fn send(&self, msg:Msg) -> Result<ReplyMsg, Box<dyn std::error::Error>> {
         let (s, r) = bounded(1);
         match self.message_sender.send((msg, Some(s))).await {
-            Err(_) => Err("the mailbox channel is closed send back nothing"),
+            Err(_) => Err("the mailbox channel is closed send back nothing".into()),
             Ok(_) => match r.recv().await {
-                Err(_) => Err("the response channel is closed (did you mean to call fire_and_forget() rather than send())"),
+                Err(_) => Err("the response channel is closed (did you mean to call fire_and_forget() rather than send())".into()),
                 Ok(reply_message) => Ok(reply_message),
             },
         }
@@ -64,7 +64,6 @@ impl<Msg: std::marker::Send + 'static, ReplyMsg: std::marker::Send + 'static> Ma
 mod tests {
     use super::*;
     use futures::future::{OptionFuture};
-
 
     #[async_std::test]
     async fn mailbox_processor_tests() {
