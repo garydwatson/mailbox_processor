@@ -16,6 +16,13 @@ This mailbox processor does have on thing the fsharp original doesn't have... It
 
 I based this on async-std, but it would be easy to port to tokio (if that even makes sense).  If someone runs into a problem using it along side tokio, I would accept a pull request for a tokio version or I would be willing to build a tokio version (shouldn't take much work).
 
+not obvious but you can start the mailbox processor from a synchronous context using something like... 
+
+task::block_on(mb); //this method will return and when it does the event loop will be fired up and ready to accept messages.
+
+to send messages you should probably still be in an async context :)
+
+
 ### Here is an example of a counter using the mailbox processor
 
 ```rust
