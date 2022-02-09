@@ -62,9 +62,72 @@ impl<Msg: std::marker::Send + 'static, ReplyMsg: std::marker::Send + 'static> Ma
 
 #[cfg(test)]
 mod tests {
+    use async_std::task;
+    use super::*;
+    use futures::future::{OptionFuture};
+
+
     #[test]
     fn it_works() {
         let result = 2 + 2;
         assert_eq!(result, 4);
     }
+
+    #[async_std::test]
+    async fn mailbox_processor_tests() {
+
+        enum SendMessageTypes {
+            One(i32),
+            Two(String),
+        }
+
+        #[derive(Debug)]
+        enum ResponseMessageTypes {
+            Three(i32),
+            Four(String),
+        }
+
+        let mb = MailboxProcessor::<SendMessageTypes, ResponseMessageTypes>::new( 
+            BufferSize::Default, 
+            0,  
+            |msg, state, reply_channel| async move {
+                //if state % 10_000 == 0 {println!("state = {}", state)}
+                println!("state = {}", state);
+                match msg {
+                    SendMessageTypes::One(x) => {
+                        println!("hello");
+                        OptionFuture::from(reply_channel.map(|rc| async move {
+                            rc.send(ResponseMessageTypes::Three(25 + x)).await.unwrap()
+                        })).await;
+                    },
+                    SendMessageTypes::Two(x) => {
+                        println!("yo");
+                        let something: i32 = 36;
+                        OptionFuture::from(reply_channel.map(|rc| async move {
+                            rc.send(ResponseMessageTypes::Four(format!("{}{}", x, something.to_string()))).await.unwrap()
+                        })).await;
+                    },
+                };
+                state + 1
+            }
+        ).await;
+
+        println!("what is the output: {:#?}", mb.send(SendMessageTypes::One(55)).await);
+        println!("what is the output: {:#?}", mb.send(SendMessageTypes::Two("I'm a string thing".to_string())).await);
+
+        mb.fire_and_forget(SendMessageTypes::One(55)).await.unwrap();
+        mb.fire_and_forget(SendMessageTypes::Two("I'm a string thing".to_string())).await.unwrap();
+
+        //loop {
+        //    mb.fire_and_forget(SendMessageTypes::One(55)).await.unwrap();
+        //}
+
+        task::sleep(std::time::Duration::from_millis(1000)).await;
+
+
+//Fn(Msg, State, Option<Sender<ReplyMsg>>
+    }
+
+
+
 }
