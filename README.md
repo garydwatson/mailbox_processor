@@ -2,7 +2,7 @@ Mailbox Processor is a small little actor abstraction inspired by the FSharp Mai
 
 ### Here is an example of a counter using the mailbox processor
 
-```
+```rust
         enum SendMessageTypes {
             Increment(i32),
             GetCurrentCount,
