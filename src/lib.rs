@@ -17,7 +17,7 @@ pub enum BufferSize {
 pub struct MailboxProcessorError {
     msg: String,
     #[source]
-    source: Box<dyn std::error::Error + std::marker::Send + Sync + 'static>,
+    source: Option<Box<dyn std::error::Error + std::marker::Send + Sync + 'static>>,
 }
 impl Display for MailboxProcessorError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -33,7 +33,7 @@ impl BufferSize {
     }
 }
 
-impl<Msg: std::marker::Send + std::marker::Sync + 'static, ReplyMsg: std::marker::Send + 'static> MailboxProcessor<Msg, ReplyMsg> {
+impl<Msg: std::marker::Send + 'static, ReplyMsg: std::marker::Send + 'static> MailboxProcessor<Msg, ReplyMsg> {
     pub async fn new<State: std::marker::Send + 'static, F: Future<Output = State> + std::marker::Send>
     (
         buffer_size: BufferSize,
@@ -60,16 +60,16 @@ impl<Msg: std::marker::Send + std::marker::Sync + 'static, ReplyMsg: std::marker
     pub async fn send(&self, msg:Msg) -> Result<ReplyMsg, MailboxProcessorError> {
         let (s, r) = bounded(1);
         match self.message_sender.send((msg, Some(s))).await {
-            Err(x) => Err(MailboxProcessorError { msg: "the mailbox channel is closed send back nothing".to_owned(), source: x.into() }),
+            Err(_) => Err(MailboxProcessorError { msg: "the mailbox channel is closed send back nothing".to_owned(), source: None}),
             Ok(_) => match r.recv().await {
-                Err(x) => Err(MailboxProcessorError { msg: "the response channel is closed (did you mean to call fire_and_forget() rather than send())".to_owned(), source: x.into()}),
+                Err(_) => Err(MailboxProcessorError { msg: "the response channel is closed (did you mean to call fire_and_forget() rather than send())".to_owned(), source: None}),
                 Ok(reply_message) => Ok(reply_message),
             },
         }
     }
     //pub async fn fire_and_forget(&self, msg:Msg) -> Result<(), SendError<(Msg, Option<Sender<ReplyMsg>>)>> {
     pub async fn fire_and_forget(&self, msg:Msg) -> Result<(), MailboxProcessorError> {
-        self.message_sender.send((msg, None)).await.map_err(|e| MailboxProcessorError {msg: "the mailbox channel is closed send back nothing".to_owned(), source: e.into()})
+        self.message_sender.send((msg, None)).await.map_err(|_| MailboxProcessorError {msg: "the mailbox channel is closed send back nothing".to_owned(), source: None})
     }
 }
 
