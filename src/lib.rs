@@ -17,7 +17,7 @@ pub enum BufferSize {
 pub struct MailboxProcessorError {
     msg: String,
     #[source]
-    source: Option<Box<dyn std::error::Error + std::marker::Send + Sync + 'static>>,
+    source: Option<Box<dyn std::error::Error + std::marker::Send + 'static>>,
 }
 impl Display for MailboxProcessorError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
