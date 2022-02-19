@@ -1,6 +1,8 @@
 use async_std::prelude::*;
 use async_std::channel::*;
 use async_std::task;
+use std::fmt::Display;
+use thiserror::Error;
 
 pub struct MailboxProcessor<Msg, ReplyMsg> {
     message_sender: Sender<(Msg, Option<Sender<ReplyMsg>>)>,
@@ -10,6 +12,16 @@ pub enum BufferSize {
     Default,
     Size(usize),
 }
+
+#[derive(Debug, Error)]
+pub struct MailboxProcessorError {
+    msg: String,
+    #[source]
+    source: Box<dyn std::error::Error + std::marker::Send + Sync + 'static>,
+}
+impl Display for MailboxProcessorError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.msg) } }
 
 impl BufferSize {
     fn unwrap_or(&self, default_value: usize) -> usize {
@@ -21,7 +33,7 @@ impl BufferSize {
     }
 }
 
-impl<Msg: std::marker::Send + 'static, ReplyMsg: std::marker::Send + 'static> MailboxProcessor<Msg, ReplyMsg> {
+impl<Msg: std::marker::Send + std::marker::Sync + 'static, ReplyMsg: std::marker::Send + 'static> MailboxProcessor<Msg, ReplyMsg> {
     pub async fn new<State: std::marker::Send + 'static, F: Future<Output = State> + std::marker::Send>
     (
         buffer_size: BufferSize,
@@ -45,18 +57,19 @@ impl<Msg: std::marker::Send + 'static, ReplyMsg: std::marker::Send + 'static> Ma
             message_sender: s,
         }
     }
-    pub async fn send(&self, msg:Msg) -> Result<ReplyMsg, &str> {
+    pub async fn send(&self, msg:Msg) -> Result<ReplyMsg, MailboxProcessorError> {
         let (s, r) = bounded(1);
         match self.message_sender.send((msg, Some(s))).await {
-            Err(_) => Err("the mailbox channel is closed send back nothing"),
+            Err(x) => Err(MailboxProcessorError { msg: "the mailbox channel is closed send back nothing".to_owned(), source: x.into() }),
             Ok(_) => match r.recv().await {
-                Err(_) => Err("the response channel is closed (did you mean to call fire_and_forget() rather than send())"),
+                Err(x) => Err(MailboxProcessorError { msg: "the response channel is closed (did you mean to call fire_and_forget() rather than send())".to_owned(), source: x.into()}),
                 Ok(reply_message) => Ok(reply_message),
             },
         }
     }
-    pub async fn fire_and_forget(&self, msg:Msg) -> Result<(), SendError<(Msg, Option<Sender<ReplyMsg>>)>> {
-        self.message_sender.send((msg, None)).await
+    //pub async fn fire_and_forget(&self, msg:Msg) -> Result<(), SendError<(Msg, Option<Sender<ReplyMsg>>)>> {
+    pub async fn fire_and_forget(&self, msg:Msg) -> Result<(), MailboxProcessorError> {
+        self.message_sender.send((msg, None)).await.map_err(|e| MailboxProcessorError {msg: "the mailbox channel is closed send back nothing".to_owned(), source: e.into()})
     }
 }
 
