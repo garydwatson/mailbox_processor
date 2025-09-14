@@ -1,6 +1,6 @@
 [package]
 name = "mailbox_processor"
-version = "0.1.6"
+version = "1.0.0"
 edition = "2021"
 
 license = "LGPL-2.1-or-later" 
@@ -15,10 +15,7 @@ readme = "README.md"
 [dependencies]
 futures = "0.3.21"
 thiserror = "1.0.30"
+tokio = { version = "1.47.1", features = ["full"] }
 
 [dev-dependencies]
 futures = "0.3.21"
-
-[dependencies.async-std]
-version = "1.10.0"
-features = ["attributes"]

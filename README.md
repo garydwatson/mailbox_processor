@@ -12,9 +12,9 @@ For the most part I've been using this abstraction to synchronize things.  I use
 
 It's pretty useful for solving all sorts of concurrency problems...
 
-This mailbox processor does have on thing the fsharp original doesn't have... It's based on a bounded channel(queue), which means you can to some extent have some control over backpressure.
+This mailbox processor does have one thing the fsharp original doesn't have... It's based on a bounded channel(queue), which means you can to some extent have some control over backpressure.
 
-I based this on async-std, but it would be easy to port to tokio (if that even makes sense).  If someone runs into a problem using it along side tokio, I would accept a pull request for a tokio version or I would be willing to build a tokio version (shouldn't take much work).
+I originally based this on async-std, but have since ported it to tokio.
 
 not obvious but you can start the mailbox processor from a synchronous context using something like... 
 
