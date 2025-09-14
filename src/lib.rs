@@ -1,6 +1,6 @@
-use async_std::prelude::*;
-use async_std::channel::*;
-use async_std::task;
+use tokio::sync::mpsc::{self, Sender};
+use tokio::task;
+use std::future::Future;
 use std::fmt::Display;
 use thiserror::Error;
 
@@ -41,13 +41,13 @@ impl<Msg: std::marker::Send + 'static, ReplyMsg: std::marker::Send + 'static> Ma
         message_processing_function: impl Fn(Msg, State, Option<Sender<ReplyMsg>>) -> F + std::marker::Send + 'static + std::marker::Sync,
     ) 
     -> Self {
-        let (s,r) = bounded(buffer_size.unwrap_or(1_000));
+        let (s, mut r) = mpsc::channel(buffer_size.unwrap_or(1_000));
         task::spawn(async move { 
             let mut state = initial_state;
             loop {
                 match r.recv().await {
-                    Err(_) => break,  //the channel was closed so bail
-                    Ok((msg, reply_channel)) => {
+                    None => break,  //the channel was closed so bail
+                    Some((msg, reply_channel)) => {
                         state = message_processing_function(msg, state, reply_channel).await;
                     },
                 }
@@ -58,12 +58,12 @@ impl<Msg: std::marker::Send + 'static, ReplyMsg: std::marker::Send + 'static> Ma
         }
     }
     pub async fn send(&self, msg:Msg) -> Result<ReplyMsg, MailboxProcessorError> {
-        let (s, r) = bounded(1);
+        let (s, mut r) = mpsc::channel(1);
         match self.message_sender.send((msg, Some(s))).await {
             Err(_) => Err(MailboxProcessorError { msg: "the mailbox channel is closed send back nothing".to_owned(), source: None}),
             Ok(_) => match r.recv().await {
-                Err(_) => Err(MailboxProcessorError { msg: "the response channel is closed (did you mean to call fire_and_forget() rather than send())".to_owned(), source: None}),
-                Ok(reply_message) => Ok(reply_message),
+                None => Err(MailboxProcessorError { msg: "the response channel is closed (did you mean to call fire_and_forget() rather than send())".to_owned(), source: None}),
+                Some(reply_message) => Ok(reply_message),
             },
         }
     }
@@ -78,7 +78,7 @@ mod tests {
     use super::*;
     use futures::future::{OptionFuture};
 
-    #[async_std::test]
+    #[tokio::test]
     async fn mailbox_processor_tests() {
 
         enum SendMessageTypes {
